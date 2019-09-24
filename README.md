@@ -8,4 +8,5 @@ Codes are mainly written in matlab, and in a modular way.  The file structures a
  the thickness of links, the number of calls for random loop generators, and the number of samples generated in each such call, and the 
  number of attemped neighbors in generating adjacency graphs.
  
-2.
+2. RandomSampleClosedChain.m
+ The function that calls a new random loop generator and another generator for sampling regions near c-obst.  It calls RandomLoopGenerator(), BackWardRandomLoopGenerator(), and SlideLoopGenerator() functions.  
