@@ -3,7 +3,7 @@ This repo. contains codes, videos, examples, and papers that present new theorie
 problems in the motion planning of open and closed chains. 
 
 # folder structure
-Codes are mainly written in matlab, and in a modular way.  The folder:
+Codes are mainly written in matlab, and in a modular way.  They are organized in the following folders.
 1. /paper contains two papers:
     paper 1: LT-access-close-loop.pdf,  is an earlier paper which studied the bifurcation set (called boundary variety) of C-spaces of  planar closed chains, and used
 the set in the decomposition of C-space into Euclidean coordinate patches, followed by coordinate continuation planning method.
