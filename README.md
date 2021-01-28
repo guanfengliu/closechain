@@ -3,7 +3,7 @@ This repo. contains codes, videos, examples, and papers that present new theorie
 problems in the motion planning of open and closed chains. 
 
 # folder structure
-Codes are mainly written in matlab, and in a modular way.  They are organized in the following folders.
+Codes are mainly written in matlab, and in a modular way.  Codes, videos, examples and papers are organized in the following folders.
  ## 1. paper
    
  ### 1.1 paper 1
