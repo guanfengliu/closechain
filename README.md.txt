@@ -1,6 +1,6 @@
 # closechain
 This repo. contains codes, videos, examples, and papers that present new theories and algorithms for studying the narrow passage
-problems in the motion planning of open or closed chains. 
+problems in the motion planning of open and closed chains. 
 
 # folder structure
 Codes are mainly written in matlab, and in a modular way.  The folder:
