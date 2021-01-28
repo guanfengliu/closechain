@@ -5,9 +5,11 @@ problems in the motion planning of open and closed chains.
 # folder structure
 Codes are mainly written in matlab, and in a modular way.  They are organized in the following folders.
 1. /paper contains two papers:
-    paper 1: LT-access-close-loop.pdf,  is an earlier paper which studied the bifurcation set (called boundary variety) of C-spaces of  planar closed chains, and used
+   
+  paper 1: LT-access-close-loop.pdf,  is an earlier paper which studied the bifurcation set (called boundary variety) of C-spaces of  planar closed chains, and used
 the set in the decomposition of C-space into Euclidean coordinate patches, followed by coordinate continuation planning method.
-     paper 2:  narrow_passage_LT.pdf  proposes two quantitative measures for narrow passages  in robot C-space based upon the narrowness of robot links and 
+     
+  paper 2:  narrow_passage_LT.pdf  proposes two quantitative measures for narrow passages  in robot C-space based upon the narrowness of robot links and 
 the kinematics of its subchains.  It presents the tool of topological component which is key to identify the "neck pinches" and provide a coarse decomposition of
 C-space. Finally it proposes a new random sampler of C-space narrow passage via the cone of significant local motion of robot links and the enumeration of
 topological components.  
