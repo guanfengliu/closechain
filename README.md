@@ -17,22 +17,22 @@ C-space. Finally it proposes a new random sampler of C-space narrow passage via 
 topological components.  
 
 ## 2. video
-Animations for all examples in paper 2 under /paper
+Animations for all examples in paper 2 under /paper.
 
 ## 3. common
  Common libraries, functions (such as collision checking, random loop sampling, configure drawing， etc.)
-, and utilities which are used in both M-PRM (modified PRM) and M-RRT （modified RRT) algorithms
+, and utilities which are used in both M-PRM (modified PRM) and M-RRT （modified RRT) algorithms.
 
 ## 4. M-PRM
 Latest version of modified PRM algorithm,  used for solving the two challenging narrow-passage problems (example 7,8 in
-paper  narrow-passage-LT.pdf)
+paper  narrow-passage-LT.pdf).
  
 ## 5. M-RRT
 Latest version of modified RRT algorithm,  used for solving the challenging climbing problem invovling  narrow passages (example 9 in the paper
-narrow-passage-LT.pdf)
+narrow-passage-LT.pdf).
 
 ## 6. oldversion-M-PRM 
-contains the following m-script
+contains the following m-script:
 
 ### 6.1 ClosedChainMotionPlan.m
       The main function for implementing a sampling based roadmap algorithm based on the inputs of link length vector, start and goal configs,
