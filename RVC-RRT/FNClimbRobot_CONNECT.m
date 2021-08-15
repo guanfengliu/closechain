@@ -1,12 +1,11 @@
-classdef FNClimbRobot < handle
+classdef FNClimbRobot_CONNECT < handle
     properties (SetAccess = private)
-        tree                    % Array stores states 
+        tree                    % Tree from start point, Array stores states 
         parent                  % Array stores relation information about nodes                    
         children                % Number of children of each node
-        free_nodes              % Indices of free nodes
-        free_nodes_ind          % Last element in free_nodes
-        cost                    % Cost between 2 connected states
-        cumcost                 % Cost from the root of the tree to the given node
+        
+        %cost                    % Cost between 2 connected states
+        %cumcost                 % Cost from the root of the tree to the given node
         conf                    % configuration struct
         XY_BOUNDARY             %[min_x max_x min_y max_y]
         start_hold_index           % start hold No 
@@ -47,12 +46,7 @@ classdef FNClimbRobot < handle
         
         
         %%% temporary variables
-        
-  %      compare_table 
-  %      index
-  %      list
         temp_new_node_position
-        num_rewired
         
         %%% obstacle detection specific
         turn_states             % intermediate angle states from one configuration of redudant robot manipulator to another
@@ -72,7 +66,7 @@ classdef FNClimbRobot < handle
         % object constructor
         % load_map(map.name)  loads variables like obstacles (n polygons, each a 2 by n matrix), 
         % holds (2*n matrix), 
-        function this = FNClimbRobot(rand_seed, max_nodes, map, conf)
+        function this = FNClimbRobot_CONNECT(rand_seed, max_nodes, map, conf)
             rng(rand_seed);
             %% initialize configuration parameters
             this.conf = conf;
@@ -153,14 +147,8 @@ classdef FNClimbRobot < handle
                 
             this.parent = zeros(1, max_nodes, 'int32');
             this.children = zeros(1, max_nodes, 'int32');
-            %this.free_nodes = zeros(1, max_nodes, 'int32');
-            %this.free_nodes_ind = int32(1);
-            
-            this.cost = zeros(1, max_nodes, 'single');
-            this.cumcost = zeros(1, max_nodes, 'single');
             this.start_angle = conf.init_conf;
             this.goal_angle = conf.goal_conf;
-            %this.XY_BOUNDARY = zeros(4,1, 'single');
             this.tree.angle(:, 1) = conf.init_conf;
             this.tree.narrow_topo(1) = 0;  %initial angle is always set to non-narrow nor from topological component
                       
@@ -178,30 +166,14 @@ classdef FNClimbRobot < handle
             this.nodes_added = 2;
             
             
-            %%% obstacle detection specific
+            %%% obstacle detection specific: the number of interpolation
+            %%% points for collision checking
             this.step_div = conf.step_div;
-            % this.turn_states = zeros(this.num_links, this.step_div, 'single'); % angles
-            %this.turn_pos = zeros(this.num_link, 2, this.step_div, 'single'); % positions
-            %this.turn_cumsum = zeros(this.num_link, this.step_div, 'single'); % cum sum
             
+            % for link-link collision checking
             this.test_list = combnk(1:this.num_links,2);                               % 2uple combinations of 5 links
             this.test_list = setdiff(this.test_list,  [ (1:this.num_links-1)' (2:this.num_links)'], 'rows');    % Remove adjacent links
             [this.num_comb, ~] = size(this.test_list);
-            
-            %this.link_corner = cell(this.num_link, 1);
-            %this.link_axis = cell(this.num_link, 2);
-            %this.link_quant = 10;
-            
-            %this.update_link_position(1);
-            
-            
-            %%% temp var-s initialization
-            %this.temp_obs = zeros(this.num_link+1, 2, 'single');
-            %this.compare_table = zeros(1, max_nodes, 'single');
-            %this.index = zeros(1, max_nodes, 'single');
-            %this.num_rewired = 0;
-            
-            %this.list = 1:max_nodes;
         end
         %% Access some properties
         function hold_id = getStartHoldid(this)
@@ -256,8 +228,8 @@ classdef FNClimbRobot < handle
             this.children = zeros(1, this.max_nodes, 'int32');
             
             % reinit cost and cumcost
-            this.cost = zeros(1, this.max_nodes, 'single');
-            this.cumcost = zeros(1, this.max_nodes, 'single');
+            %this.cost = zeros(1, this.max_nodes, 'single');
+            %this.cumcost = zeros(1, this.max_nodes, 'single');
             
             % update first node angle on the tee
             this.tree.angle(:, 1) = start_j;
@@ -272,79 +244,64 @@ classdef FNClimbRobot < handle
             
             %% desired joint only makes sense for the very last motion at the goal hold
             if length(desired_j) <= 1
-                if mode == "closed"
-                  % for closed chain, we save the close chain mpData
-                  % structure
-                  dvec = this.holds.coord(:, this.tree.hold_id_r) - this.tree.base;
-                  gap = norm(dvec);
-                  % tree.cl_center is an estimation for the possible center
-                  % tree.cl_radius is the estimated radius (w.r.t.
-                  % cl_center) of the workspace of the narrow link
+               dvec = this.holds.coord(:, this.tree.hold_id_r) - this.tree.base;
+               gap = norm(dvec);
+                  
+               if mode == "closed"   % for closed chain, we need cl_center and cl_radius to estimate workspace
                   this.tree.cl_center =  0.5 * (this.holds.coord(:, this.tree.hold_id_r) + this.tree.base);
                   if this.conf.half_total_length > 0.5 * gap
                      this.tree.cl_radius = (this.conf.half_total_length^2 - (0.5*gap)^2)^0.5; 
                   else
                      this.tree.cl_radius = -1;
                   end
-                  this.tree.mpData.linklength = [this.tree.linkLengthVec; gap]; 
-                  [CollisionVarCritRadiusL, CollisionVarCritRadiusR] = calCritRadius(this.tree.mpData.linklength);
-                  this.tree.mpData.init_angle = atan2(dvec(2), dvec(1));
-                  this.tree.mpData.CollisionVarCritRadiusL = CollisionVarCritRadiusL;
-                  this.tree.mpData.CollisionVarCritRadiusR = CollisionVarCritRadiusR;
-                  % @enable_bound, do we also smaple the boundary variety
-                  this.tree.mpData.enable_bound = false;
-                  this.tree.mpData.left_2_right = true;
-                  this.tree.mpData.nonbsamples = 1;
-                  % for closed chain, its links still numbered from 1 to this.num_links from hold_l to hold_r
-                  % although hold_orientation at each hold is pi/2, it
-                  % should be pi/2 -pi if this hold is link n+1
-                  this.tree.goal_angle(this.num_links) = this.conf.hold_orientation - pi;
-                  dvec = this.holds.coord(:, this.tree.hold_id_r) -...
-                      this.tree.linkLengthVec(end) *...
-                      [cos(this.tree.goal_angle(this.num_links)); sin(this.tree.goal_angle(this.num_links))]...
-                      - this.tree.base;
-                  mpData.linklength = [this.tree.linkLengthVec(1:this.num_links-1); norm(dvec)];
-                  [CollisionVarCritRadiusL, CollisionVarCritRadiusR] = calCritRadius(mpData.linklength);
-                  mpData.init_angle = atan2(dvec(2), dvec(1));
-                  mpData.CollisionVarCritRadiusL = CollisionVarCritRadiusL;
-                  mpData.CollisionVarCritRadiusR = CollisionVarCritRadiusR;
-                  % @enable_bound, do we also smaple the boundary variety
-                  mpData.enable_bound = false;
-                  mpData.left_2_right = true;
-                  mpData.nonbsamples = 1;
-                  collision = true;
-                  numTries = 0;
-                  while collision && numTries < this.conf.init_search_tries
-                     [out] = RandomLoopGeneratorGen2(mpData);
-                     if size(out,2)==0
-                         status=false;
-                         return;
-                     else
-                         angle = [out(1:end-1,1);this.tree.goal_angle(this.num_links)];
-                         collision = this.CheckCollision(angle);
-                      %this.tree.goal_angle(1:this.num_links-1) = out(1:end-1,1);
+               end
+               
+               this.tree.mpData.linklength = [this.tree.linkLengthVec; gap]; 
+               [CollisionVarCritRadiusL, CollisionVarCritRadiusR] = calCritRadius(this.tree.mpData.linklength);
+               this.tree.mpData.init_angle = atan2(dvec(2), dvec(1));
+               this.tree.mpData.CollisionVarCritRadiusL = CollisionVarCritRadiusL;
+               this.tree.mpData.CollisionVarCritRadiusR = CollisionVarCritRadiusR;
+               % @enable_bound, do we also smaple the boundary variety
+               this.tree.mpData.enable_bound = false;
+               this.tree.mpData.left_2_right = true;
+               this.tree.mpData.nonbsamples = this.conf.init_search_tries;
+                  
+               collision = true;
+               numTries = 0;
+               while collision && numTries < 5 * this.conf.init_search_tries
+                  [out] = RandomLoopGeneratorGen2(this.tree.mpData);
+                  if size(out,2)==0
+                     status=false;
+                     return;
+                  else
+                     for i=1:size(out,2) 
+                       angle = out(1:end-1,i);
+                       collision = this.CheckCollision(angle);
+                       if ~collision
+                           break;
+                       end
                      end
-                     numTries = numTries + 1;
+                     %this.tree.goal_angle(1:this.num_links-1) = out(1:end-1,1);
                   end
-                  if numTries >= this.conf.init_search_tries
-                      status = false; %% search valid init failed.
-                      return;
-                  end
-                  this.tree.goal_angle = angle;
-                %% no else here, because for open chain, desired joint angle is
-                %% determined by along-the-way random sampling and the tip matches the desired hold point
-                end
+                  numTries = numTries + size(out,2);
+               end
+               if collision %numTries >= this.conf.init_search_tries
+                  status = false; %% search valid init failed.
+                  return;
+               end
+               this.tree.goal_angle = angle;
             else
-              this.tree.goal_angle =  desired_j; % * ones(this.conf.num_link,1);
-              % finally we can compute the goal point of the final
-              % configuration in the entire motion
-              this.goal_point(1) = sum( this.tree.linkLengthVec.*cos(this.tree.goal_angle)) + this.tree.base(1);
-              this.goal_point(2) = sum( this.tree.linkLengthVec.*sin(this.tree.goal_angle)) + this.tree.base(2);
+               this.tree.goal_angle =  desired_j; % * ones(this.conf.num_link,1);
             end
+            this.goal_point(1) = sum( this.tree.linkLengthVec.*cos(this.tree.goal_angle)) + this.tree.base(1);
+            this.goal_point(2) = sum( this.tree.linkLengthVec.*sin(this.tree.goal_angle)) + this.tree.base(2);
             status=true;
             return;
         end
-        
+        % get the goal angle for this current phase of motion
+        function goal_angle = getCurrentGoal(this)
+             goal_angle = this.tree.goal_angle;
+        end
         %% process all obstacles, and create their triangulation representation
         function   processObstacle(this)
               this.obstacle.fv.vertices = [];
@@ -397,6 +354,8 @@ classdef FNClimbRobot < handle
                 end
                % dist = min(norm(qq - pp1), norm(qq-pp2));
             end
+            % subtract the half of the link wdith
+            dist = dist - 0.5 * this.conf.width;
         end
         %% find narrow face-vertex pairs 
         function findNarrowFaceVertexPairs(this)
@@ -529,24 +488,11 @@ classdef FNClimbRobot < handle
             minDist = inf;
             %isNarrow = false;
             for i=1:this.num_links,
-%                 [dist, isNarrowTemp] = this.determineNarrowDist(link_pos(i,:)', link_pos(i+1,:)');
-%                 if ~isNarrow && isNarrowTemp
-%                     isNarrow = true;
-%                 end
-%                 if dist < minDist
-%                     minDist = dist;
-%                 end
                 dist =  this.calObstDist(link_pos(i,:)', link_pos(i+1,:)');
                 if dist < minDist
                     minDist = dist;
                 end
             end
-%             minDist = minDist - this.conf.max_linkwidth;
-%             if minDist <= this.conf.narrow_link_dist
-%                 isNarrow = true;
-%             else
-%                 isNarrow = false;
-%             end
         end
         
         function [minDist, isNarrow] = calNarrowNess(this, joint)
@@ -561,17 +507,7 @@ classdef FNClimbRobot < handle
                 if dist < minDist
                     minDist = dist;
                 end
-%                 dist =  this.calObstDist(link_pos(i,:)', link_pos(i+1,:)');
-%                 if dist < minDist
-%                     minDist = dist;
-%                 end
             end
-%             minDist = minDist - this.conf.max_linkwidth;
-%             if minDist <= this.conf.narrow_link_dist
-%                 isNarrow = true;
-%             else
-%                 isNarrow = false;
-%             end
         end
         
         
@@ -583,7 +519,7 @@ classdef FNClimbRobot < handle
             dist = inf;
             for i=1:size(this.obstacle.coord, 2),
                 qq = this.obstacle.coord(:, i);
-                dist_t = this.computeDistVertex2Edge(qq, pp1, pp2);
+                dist_t = abs(this.computeDistVertex2Edge(qq, pp1, pp2));
                 if dist_t < dist
                    dist = dist_t;
                 end
@@ -700,7 +636,7 @@ classdef FNClimbRobot < handle
         function gPath = searchHoldSequence(this)
             %% first compute the adjacency matrix adj
             adj = adjacency(this.holdGraph);
-            gPath = paths_climb_good(adj, this.start_hold_index,...
+            gPath = paths_climb(adj, this.start_hold_index,...
                   this.goal_hold_index, this.holds.coord, false);
         end
         %% sampling based upon robot current phase, sometimes, robot is
@@ -712,24 +648,15 @@ classdef FNClimbRobot < handle
         % n+1 as terminal (also a hold)
         % for open chain hold_id_l == hold_id_r, robot is based at
         % hold_id1(hold_id2)
-        function state = sample(this) % mode, hold_id_l, hold_id_r, terminal)
+        function [state, numCollisionChecks] = sample(this) % mode, hold_id_l, hold_id_r, terminal)
             state = [];
+            numCollisionChecks = 0;
             % generate random angle within min_ang and max_ang range
             % state represents  a C-space element, which consists of an
             % joint angle vector and the 2d coordinates of base
             if this.tree.mode == "open"
                state = (this.tree.max_ang - this.tree.min_ang) .* rand(this.num_links, 1) + this.tree.min_ang;
             else
-%                dvec = this.holds.coord(:, this.tree.hold_id_r) - this.tree.base;
-%                mpData.linklength = [this.tree.linkLengthVec; norm(dvec)]; 
-%                [CollisionVarCritRadiusL, CollisionVarCritRadiusR] = calCritRadius(mpData.linklength);
-%                mpData.init_angle = atan2(dvec(2), dvec(1));
-%                mpData.CollisionVarCritRadiusL = CollisionVarCritRadiusL;
-%                mpData.CollisionVarCritRadiusR = CollisionVarCritRadiusR;
-%                % @enable_bound, do we also smaple the boundary variety
-%                mpData.enable_bound = false;
-%                mpData.left_2_right = true;
-%                mpData.nonbsamples = 1;
                [out] = RandomLoopGeneratorGen2(this.tree.mpData);
                if size(out,2)==0
                   return;
@@ -738,24 +665,10 @@ classdef FNClimbRobot < handle
                end
             end
             collision = this.CheckCollision(state);
-            if ~collision
-               if this.tree.mode ~= "open" 
-%                  link_pos = this.generate_link_position(state);
-%                  this.draw_config_and_map(link_pos,1,'r');
-               end
-            else
+            numCollisionChecks = numCollisionChecks + 1;
+            if collision
                state = [];
             end
-            %%link_pos = this.generate_link_position(state);
-            %%this.draw_config_and_map(link_pos,1,'b');
-            %state.base = this.holds.coord(:, this.tree.hold_id_l);
-            % generate manipulator orientation
-            % link_pos = this.generate_link_position(state);
-            % check if manipulator within the defined area
-%             while any(link_pos(:,1) < this.XY_BOUNDARY(1)) || any(link_pos(:,1) > this.XY_BOUNDARY(2)) || any(link_pos(:,2) < this.XY_BOUNDARY(3)) || any(link_pos(:,2) > this.XY_BOUNDARY(4))
-%                 state = (this.max_ang - this.min_ang) .* rand(this.num_link, 1) + this.min_ang;
-%                 link_pos = this.generate_link_position(state, hold_id, terminal);
-%             end
         end
         
         %% randomly choose the set of narrow links and the corresponding narrow vertex-edge pairs, for which the entire chain
@@ -791,6 +704,8 @@ classdef FNClimbRobot < handle
           %% for each narrow link chose correspongding narrow vertex_edge pairs
           narrowPassageSet = randi(this.num_narrow_pairs, num_narrow_links, 1);
         end
+        
+        
         %% sampling open chain topological components
         %@terminal =0, link 0 as base of open chain, terminal=1, link n+1
         %as base of open chain
@@ -798,9 +713,10 @@ classdef FNClimbRobot < handle
         % for open chain, hold_id_l=hold_id_r,  for closed chain, hold_id_l
         % is the terminal link (indicated by terminal), hold_id_r is the other terminal link
         
-        function [topo_state, topo_state_c] = sampleTopo(this) % mode, hold_id_l, hold_id_r, terminal)
+        function [topo_state, topo_state_c, numCollisionChecks] = sampleTopo(this) % mode, hold_id_l, hold_id_r, terminal)
            topo_state = []; % joint state
            topo_state_c = []; % Cartesian state
+           numCollisionChecks = 0;
            if this.num_narrow_pairs > 0
                % compute the vector of narrow links
                % and the cooresponding index vector, representing the set of pairs of narrow vertex-edge pairs
@@ -840,19 +756,27 @@ classdef FNClimbRobot < handle
                       centerPt =  ra * pp_up + (1-ra) * closestPts;
                     else
                       % for open chain, just directly purely random sampling  
-                      randNumber = rand(3, 1);
-                      centerPt = pt * (randNumber/sum(randNumber));
+                      % randNumber = rand(3, 1);
+                       pt_l = 0.5 * (pt(:, 3) + pt(:, 1));
+                       pt_r = 0.5 * (pt(:, 3) + pt(:, 2));
+                       centerPt = pt_l + rand(1) * (pt_r - pt_l);  %pt * (randNumber/sum(randNumber));
                     end
+                    
+                   
+                    
                     dpt = pt(:, 2) - pt(:, 1);
+                    % this is median axis direction for avoiding collision
                     angle = atan2(dpt(2), dpt(1));
                     
                     %% narrow link index  n_link
                     n_link = narrowLinkSet(i);
+                    % randomly chosen the fraction of the link n_link that
+                    % points from centerPt to pt_r
                     frac = rand(1);
                     linkVec = this.tree.linkLengthVec(n_link) * [cos(angle); sin(angle)];
                     % randomly choose directions 
                     dirRand = rand(1);
-                    if dirRand > 0.5
+                    if dirRand > 0.5  %  frac *  linkVec  points toward pt_r,  (1-frac) * linkVec pointers from center towrad pt_l
                        narrow_endPts = centerPt + [frac * linkVec,-(1-frac) * linkVec] ;
                     else
                        narrow_endPts = centerPt - [frac * linkVec,-(1-frac) * linkVec] ;
@@ -931,6 +855,7 @@ classdef FNClimbRobot < handle
                     end
                  end
                  collision = this.CheckCollision(topo_state);
+                 numCollisionChecks = numCollisionChecks + 1;
                  if ~collision
                    link_pos = this.generate_link_position(topo_state);
                    topo_state_c = [topo_state_c, link_pos];
@@ -944,9 +869,11 @@ classdef FNClimbRobot < handle
         end
        
 
-        function node_index = nearest(this, new_node)
+        function [node, node_index] = nearest(this, new_node)
             %%% 1: nearest by joint positions
             node_index = this.next_node_by_len(new_node);
+            node = this.tree.angle(:, node_index);
+            return;
             %%% 2: nearest by angle distance
             %node_index = this.next_node_by_ang(new_node);
         end
@@ -957,41 +884,26 @@ classdef FNClimbRobot < handle
         end
         %% find nearest neighbor based upon 
         function [ nearest_node ] = next_node_by_len(this, temp_ang)
-            %NEXT_NODE_BY_LEN Finds the nearest node by end effector
-            % position. Euclidian distance is used.
-            %temp_ang = temp_node.joint;
-%             if ~temp_node.terminal  %% terminal is link 0
-%                 linkLengthVec = this.conf.len_link;
-%             else       %% terminal is link n+1
-%                 linkLengthVec = this.conf.len_link_reverse;
-%             end
-            % temp_ang is already base upon world
             link_pos_temp = this.generate_link_position(temp_ang);
-            
-            %zeros(size(temp_ang,1),2);
-            %temp_world_ang = cumsum( temp_ang );
-            
-            %link_pos_temp(:, 1) = cumsum(this.tree.linkLengthVec.*cos(temp_ang));
-            %link_pos_temp(:, 2) = cumsum(this.tree.linkLengthVec.*sin(temp_ang));
-            tip = [squeeze(this.tree.position(end, 1, 1:this.nodes_added-1))';
-                   squeeze(this.tree.position(end, 2, 1:this.nodes_added-1))'];
-            distsq_to_goal = vecnorm(tip - this.holds.coord(:, this.tree.hold_id_r)).^2;
+            %tip = [squeeze(this.tree.position(end, 1, 1:this.nodes_added-1))';
+            %       squeeze(this.tree.position(end, 2, 1:this.nodes_added-1))'];
+            %distsq_to_goal = vecnorm(tip - this.holds.coord(:, this.tree.hold_id_r)).^2;
             % find index of minimumal distance node 
             [~, minFromPointInd] = min(...
                 sum((squeeze(this.tree.position(:, 1, 1:this.nodes_added-1)) - repmat(link_pos_temp(:,1), 1, this.nodes_added-1)) .^ 2) ...
-                + sum((squeeze(this.tree.position(:, 2, 1:this.nodes_added-1)) - repmat(link_pos_temp(:,2), 1, this.nodes_added-1)) .^ 2) ...
-                + 0.5 * distsq_to_goal);
+                + sum((squeeze(this.tree.position(:, 2, 1:this.nodes_added-1)) - repmat(link_pos_temp(:,2), 1, this.nodes_added-1)) .^ 2));
+                %+ 0.5 * distsq_to_goal);
             nearest_node = minFromPointInd;
         end
         
         %% rrt steering method: given a new node and its nearest node id, compute
         % the fastest steering position toward this new node
-        function position = steer(this, nearest_node_ind, new_node)  %%%%% need to modify based upon chain is open or closed
+        function position = steer(this, from, new_node)  %%%%% need to modify based upon chain is open or closed
             % in this function we try to go in the direction of a given
             % new_node node if it is to far and we cannot reach it in one
             % step. 
             
-            from = this.tree.angle(:, nearest_node_ind);
+            % from = this.tree.angle(:, nearest_node_ind);
             to = new_node;
             angle_diff = ConvertNormal(to - from);
             node = zeros(this.num_links, 1);
@@ -1003,7 +915,7 @@ classdef FNClimbRobot < handle
             node(~angle_inds) = to(~angle_inds);
             
             % return the generated state
-            if this.tree.mode == "open"
+            if strcmp(this.tree.mode, "open")
               position = node;
             else
               %% closing the loop
@@ -1038,8 +950,51 @@ classdef FNClimbRobot < handle
                      position = [];
                   end
                end
-%                link_pos = this.generate_link_position(position);
-%                this.draw_config_and_map(link_pos,2,'g');
+            end
+        end
+        
+        %% rrt connect method: given a new node and its nearest node id, see if
+        %% the tree can connect to this new node directly
+        %@param: nearest_node_ind,  index of the nearest node
+        %@param: new_node,  joint angles of newly sampled configuration
+        %outputs:
+        %@param new_sample, the final succeesful sample to be added to the
+        %tree, note here we only added the last successful smaple into tree
+        %@param connect_status? "Reached", means the tree is extended all way to
+        %new_node, "Advanced" means the tree stops in the middle of
+        %extending, but at least advanced a little, "Trapped" means no
+        %advancing at all
+        function [new_sample, connect_status, numCollisionChecks] = connect(this, nearest_node, new_node)
+            % in this function we try to go in the direction of a given
+            % new_node node from the nearest_node. The status could be
+            % advancing (at least advancing one step), trapped (can not move at all),
+            % or reached
+            numCollisionChecks = 0;
+            advanced = false;
+            from  = nearest_node;
+            while true, 
+              new_sample = this.steer(from, new_node);
+              collision = this.obstacle_collision(new_sample, from);
+              numCollisionChecks = numCollisionChecks + 1;
+              if ~collision
+                  distance = this.joint_metric(new_sample, new_node);
+                  advanced = true; % at least advanced
+                  if distance < this.conf.delta_ang_max
+                      connect_status = "Reached";
+                      return;
+                  else
+                      connect_status = "Advanced";
+                      from = new_sample;
+                  end
+              else
+                 if ~advanced 
+                    connect_status = "Trapped";
+                 else
+                     connect_status = "Advanced";
+                 end
+                 new_sample = from;
+                 return;
+              end
             end
         end
 
@@ -1073,11 +1028,17 @@ classdef FNClimbRobot < handle
                 this.XY_BOUNDARY = [this.holds.x_constraints this.holds.y_constraints];
             end
         end
+        
+        function distance = joint_metric(this, jnt1, jnt2)
+            delta = ConvertNormal(jnt2 - jnt1);
+            distance = norm(delta, inf);
+            return;
+        end
 
-        function collision = obstacle_collision(this, new_node, node_index)
+        function collision = obstacle_collision(this, new_node, old_node)
             
             % generate this.step_div number of states to prevent omission
-            delta = ConvertNormal(new_node - this.tree.angle(:, node_index));
+            delta = ConvertNormal(new_node - old_node);    % this.tree.angle(:, node_index));
             dist = norm(delta); %sum(abs(deltanew));
             if dist < this.conf.epsilon
                 collision = false;
@@ -1085,7 +1046,7 @@ classdef FNClimbRobot < handle
             end
             deltanew = delta/dist;  % normalize deltanew;
             dist_vec = 0:this.conf.step_delta:dist;
-            this.turn_states = this.tree.angle(:, node_index) + deltanew * dist_vec;
+            this.turn_states = old_node + deltanew * dist_vec;
 
 %             for link_ind = 1:this.num_links
 %                 % for joint, might be interpolate the difference
@@ -1122,18 +1083,19 @@ classdef FNClimbRobot < handle
         end
       
         % @isNarrowAndTopo
-        function new_node_ind = insert_node(this, parent_node_ind, new_node, isNarrowAndTopo)
+        function [new_node_ind, succ] = insert_node(this, parent_node_ind, new_node, isNarrowAndTopo)
             % method insert new node in the tree
+            succ = true;
             new_node_ind = this.nodes_added;
+            if new_node_ind > this.max_nodes
+                succ = false;
+            end
             this.nodes_added = this.nodes_added + 1;
             this.tree.angle(:, new_node_ind) = new_node;
             this.update_link_position(new_node_ind);
             this.parent(new_node_ind) = parent_node_ind;
             this.tree.narrow_topo(new_node_ind) = isNarrowAndTopo;
             this.children(parent_node_ind) = this.children(parent_node_ind) + 1; 
-            %this.update_link_position(new_node_ind);
-            this.cost(new_node_ind) = this.calc_cost_euclidian(parent_node_ind, this.tree.position(:, :, new_node_ind));
-            this.cumcost(new_node_ind) = this.cumcost(parent_node_ind) + this.cost(new_node_ind);
         end
         
         %%% RRT* specific functions
@@ -1147,44 +1109,6 @@ classdef FNClimbRobot < handle
             ind = 1:this.nodes_added-1;
             temp = ind(~sum(temp));
             neighbor_nodes = setdiff(temp, nearest_node_ind);
-        end
-        
-        function min_node_ind = chooseParent(this, neighbors, nearest_node_ind, new_node)
-            % finds the node with minimal cummulative cost node from the root of
-            % the tree. i.e. find the cheapest path end node.
-            min_node_ind = nearest_node_ind;
-            this.temp_new_node_position = this.generate_link_position(new_node);
-            min_cumcost = this.cumcost(nearest_node_ind) + this.calc_cost_euclidian(nearest_node_ind, this.temp_new_node_position);
-            for ind=1:numel(neighbors)
-                if(~this.obstacle_collision(new_node, neighbors(ind)))
-                    temp_cumcost = this.cumcost(neighbors(ind)) + this.calc_cost_euclidian(neighbors(ind), this.temp_new_node_position);
-                    if temp_cumcost < min_cumcost
-                        min_cumcost = temp_cumcost;
-                        min_node_ind = neighbors(ind);
-                    end
-                end
-            end
-        end
-        
-        function rewire(this, new_node_ind, neighbors, min_node_ind)
-            % method looks thru all neighbors(except min_node_ind) and
-            % seeks and reconnects neighbors to the new node if it is
-            % cheaper
-            for ind = 1:numel(neighbors)
-                % omit node with 
-                if (min_node_ind == neighbors(ind))
-                    continue;
-                end
-                temp_cost = this.cumcost(new_node_ind) + this.calc_cost_euclidian(neighbors(ind), this.tree.position(:, :, new_node_ind));
-                if (temp_cost < this.cumcost(neighbors(ind)) && ...
-                        ~this.obstacle_collision(this.tree.position(:, new_node_ind), neighbors(ind)))
-                    this.cumcost(neighbors(ind)) = temp_cost;
-                    this.children(this.parent(neighbors(ind))) = this.children(this.parent(neighbors(ind))) - 1;
-                    this.parent(neighbors(ind)) = new_node_ind;
-                    this.children(new_node_ind) = this.children(new_node_ind) + 1;
-                    this.num_rewired = this.num_rewired + 1;
-                end
-            end
         end
         
         %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1339,41 +1263,38 @@ classdef FNClimbRobot < handle
             link_pos(:, 2) = [this.tree.base(2); cumsum( this.tree.linkLengthVec.*sin(temp_world_ang)) + this.tree.base(2)];
         end
         
-        function cost = calc_cost_euclidian(this, from_ind, dest_node)
-            % square root is not taken
-            cost = norm(this.tree.position(:, :, from_ind) - dest_node, 'fro');
-        end
-        
-        function cost = calc_cost_angle(this, from_ind, dest_node)
-            % square root is not taken
-            cost = norm(this.tree.angle(:, from_ind) - dest_node, 'fro');
-        end
+%         
+%         function cost = calc_cost_euclidian(this, from_ind, dest_node)
+%             % square root is not taken
+%             cost = norm(this.tree.position(:, :, from_ind) - dest_node, 'fro');
+%         end
+%         
+%         function cost = calc_cost_angle(this, from_ind, dest_node)
+%             % square root is not taken
+%             cost = norm(this.tree.angle(:, from_ind) - dest_node, 'fro');
+%         end
         %@path_j, raw joint-space path
         %@path_c, raw cartesian-space path (Cartesian coordinates of all link joints)
         %@narrow_topo, vector of 0/1s indicating if a sample is narrow and
         %coming from topological component
         %@smooth_j, joint-space path after interpolation
         %@smooth_c, Cartsian paths after interpolation
-        function [path_j, path_c, narrow_topo, smooth_j, smooth_c, path_clearance_raw] = retrieve_path(this, basedEndPts)
-            path_j=[]; path_c=[]; path_clearance_raw = []; narrow_topo=[];
+        function [path_j, path_c, narrow_topo, smooth_j, smooth_c, path_narrowness_raw, path_clearance_raw] = retrieve_path(this, basedEndPts, goal_index)
+            path_j=[]; path_c=[]; path_narrowness_raw=[]; path_clearance_raw = []; narrow_topo=[];
             smooth_j = []; smooth_c =[];
-            [backtrace_path, path_iter] = this.evaluate_path(basedEndPts);
+            [backtrace_path, path_iter] = this.evaluate_path(basedEndPts, goal_index);
             if path_iter > 0
               path_j = this.tree.angle(:, backtrace_path(end:-1:1));
               narrow_topo = this.tree.narrow_topo(:, backtrace_path(end:-1:1));
-              
-%               for i=length(backtrace_path):-1:1,
-%                   path_c = [path_c, squeeze(this.tree.position(:,:,backtrace_path(i)))];
-%               end
-              if ~basedEndPts  %% if not based upon tip point matching, then we need to add the known goal configuration of this tree
+              if this.joint_metric(path_j(:,end), this.tree.goal_angle) > this.conf.angle_same_epsilon && ~basedEndPts
                   path_j = [path_j, this.tree.goal_angle];
                   narrow_topo = [narrow_topo, 0];
-                  %link_pos = this.generate_link_position(this.tree.goal_angle);
-                  %path_c = [path_c, link_pos];
               end
               for i=1:size(path_j,2),
-                 [minDist] = this.calNarrowNess(path_j(:,i)); % this.calMinClearance(path_j(:,i));
-                 path_clearance_raw = [path_clearance_raw, minDist];
+                 [narrowness] = this.calNarrowNess(path_j(:,i)); % this.calMinClearance(path_j(:,i));
+                 path_narrowness_raw = [path_narrowness_raw, narrowness];
+                 [clearance] = this.calMinClearance(path_j(:,i));
+                 path_clearance_raw = [path_clearance_raw, clearance];
                  link_pos = this.generate_link_position(path_j(:,i));
                  path_c = [path_c, link_pos]; 
               end
@@ -1446,84 +1367,84 @@ classdef FNClimbRobot < handle
         % @baseEndPts = true if the path is for an open chain to reach a
         % new hold? = false if the path is for a closed chain with two
         % fixed terminals.
-        function [backtrace_path, path_iter, reach_goal] = evaluate_path(this, basedEndPts)
+        function [backtrace_path, path_iter, reach_goal] = evaluate_path(this, basedEndPts, goal_index)
             % method find the cheapest path and the number if nodes in this
             % path
             backtrace_path = [];
             distances = zeros(this.nodes_added-1, 2);
-            if basedEndPts   % if based upon tip point matching, then compute the distances of samples to the goal hold based upon tip distance
-              goal_holdPt = this.holds.coord(:, this.tree.hold_id_r);  
-              distances(:, 1) = (this.tree.position(end, 1, 1:this.nodes_added-1) - goal_holdPt(1)) .^ 2 ...
-                + (this.tree.position(end, 2, 1:this.nodes_added-1) -  goal_holdPt(2)) .^ 2;
-            else  % otherwise, we know the goal config, so we compute the joint distance
-              distances(:, 1) = vecnorm(this.tree.angle(:, 1:this.nodes_added-1) - this.tree.goal_angle, inf);
-            end
-            distances(:, 2) = 1:this.nodes_added-1;
-            distances = sortrows(distances, 1);
-            fprintf("smallest distance to goal is %f \n", distances(1,1));
-            if basedEndPts  %% if based on tip point matching, compare it with delta_goal_point
-               dist_index = find(distances(:, 1) <= (this.conf.delta_goal_point ^ 2));
-            else
-               dist_index = find(distances(:, 1) <= this.conf.delta_goal_angle); 
-            end
-            num_close_indices = length(dist_index);
-            if num_close_indices == 0
-                reach_goal = false;
-            else
-                reach_goal = true;
+            if goal_index < 0
+              if basedEndPts   % if based upon tip point matching, then compute the distances of samples to the goal hold based upon tip distance
+                 goal_holdPt = this.holds.coord(:, this.tree.hold_id_r);  
+                 distances(:, 1) = (this.tree.position(end, 1, 1:this.nodes_added-1) - goal_holdPt(1)) .^ 2 ...
+                   + (this.tree.position(end, 2, 1:this.nodes_added-1) -  goal_holdPt(2)) .^ 2;
+              else  % otherwise, we know the goal config, so we compute the joint distance
+                 distances(:, 1) = vecnorm(this.tree.angle(:, 1:this.nodes_added-1) - this.tree.goal_angle, inf);
+              end
+              distances(:, 2) = 1:this.nodes_added-1;
+              distances = sortrows(distances, 1);
+              fprintf("smallest distance to goal is %f \n", distances(1,1));
+              if basedEndPts  %% if based on tip point matching, compare it with delta_goal_point
+                 dist_index = find(distances(:, 1) <= (this.conf.delta_goal_point ^ 2));
+              else
+                 dist_index = find(distances(:, 1) <= this.conf.delta_goal_angle); 
+              end
+              num_close_indices = length(dist_index);
+              if num_close_indices == 0
+                  reach_goal = false;
+              else
+                  reach_goal = true;
                 
-            end
-            if ~basedEndPts  % for closed chain, sometimes it is very hard to exactly reach goal joint vector, we need to verify path existence for all existing leafs
-                num_close_indices = this.nodes_added - 1;
-            else
-                num_close_indices = 1;  %% aleays use the closest point  
-            end
+              end
+              if ~basedEndPts  % for closed chain, sometimes it is very hard to exactly reach goal joint vector, we need to verify path existence for all existing leafs
+                  num_close_indices = this.nodes_added - 1;
+              else
+                  num_close_indices = 1;  %% aleays use the closest point  
+              end
             
-            % find the cheapest path
-%             num_close_indices = length(dist_index);
-%             if num_close_indices == 0
-%                 dist_index = 1:1:ceil(this.nodes_added/2);
-%                 num_close_indices = length(dist_index);
-%             end
-            
-            %% here needs to check if there is a path between 
-            nearest_node_index = -1;
-            %min_cost = inf;
-            for i=1:num_close_indices,
-                %ind = dist_index(i);
-                node_index = distances(i,2);
-                %% check if there is a simple collision free path from  angle_index to the goal point
-                collision = false;
-                if ~basedEndPts   %% if not based on tip point matching, then goal angle is known, so have to make sure node-index to goal_angle is collision free
-                   collision=this.obstacle_collision(this.tree.goal_angle, node_index);
-                end
-                if ~collision
+              %% here needs to check if there is a path between 
+              nearest_node_index = -1;
+              %min_cost = inf;
+              for i=1:num_close_indices,
+                 %ind = dist_index(i);
+                 node_index = distances(i,2);
+                 %% check if there is a simple collision free path from  angle_index to the goal point
+                 collision = false;
+                 if ~basedEndPts   %% if not based on tip point matching, then goal angle is known, so have to make sure node-index to goal_angle is collision free
+                   collision=this.obstacle_collision(this.tree.goal_angle, this.tree.angle(:, node_index));
+                 end
+                 if ~collision
 %                    temp_cost = this.cumcost(distances(ind,2));
 %                    if(min_cost > temp_cost)
 %                       min_cost = temp_cost;
                       nearest_node_index = node_index; %distances(ind,2);
                       break;
 %                     end
-                end
-            end
-            if nearest_node_index < 0
+                 end
+              end
+              if nearest_node_index < 0
                 disp('NOTICE! Robot cannot reach the goal');
                 path_iter = 0;
-            else
-              % backtracing the path
-              current_index = nearest_node_index;
-              path_iter = 1;
-              backtrace_path = zeros(1,1);
-              while(current_index ~= 1 )
-                backtrace_path(path_iter) = current_index;
-                path_iter = path_iter + 1;
-                current_index = this.parent(current_index);
-                if path_iter > 100
-                    break;
-                end
+                return;
               end
-              backtrace_path(path_iter) = current_index;
+              current_index = nearest_node_index;
+            else
+              reach_goal = true;
+              current_index = goal_index;
             end
+              % backtracing the path
+              
+            path_iter = 1;
+            backtrace_path = zeros(1,1);
+            while(current_index ~= 1 )
+               backtrace_path(path_iter) = current_index;
+               path_iter = path_iter + 1;
+               current_index = this.parent(current_index);
+               if path_iter > 1000
+                    disp('evaluate path fails');
+                    break;
+               end
+            end
+            backtrace_path(path_iter) = current_index;
         end
         
         %% plots the path and put into several figures, each show a portion of the path
@@ -1733,20 +1654,25 @@ classdef FNClimbRobot < handle
         end
         
         %% plot path clearance
-        function plot_path_clearance(this, narrow_topo, final_path_clearance_raw)
-            figure(this.conf.clearance_fig_id);
+        function plot_path_clearance(this, narrow_topo, final_path_clearance_raw, name)
+            if strcmp(name,"narrowness")
+               figure(this.conf.narrowness_fig_id);
+            else
+               figure(this.conf.clearance_fig_id);
+            end
             num_samples = size(final_path_clearance_raw, 2);
             xaxis = 1:1:num_samples;
             plot(xaxis,final_path_clearance_raw,'b');
             hold on;
             if sum(narrow_topo) > 0
-              ind = find(narrow_topo > 0)
+              ind = find(narrow_topo > 0);
               plot(xaxis(ind), final_path_clearance_raw(ind), 'ro');
-              legend('path clearance', 'narrow samples from topological component');
+              legend(name, 'narrow samples from topological component');
             end
             xlabel('sample indices');
-            ylabel('clearance');
-            title('minimal path clearance from obstacles');
+            ylabel(name);
+            tit = strcat('path ', name, ' from obstacles');
+            title(tit);
             hold off;
         end
         

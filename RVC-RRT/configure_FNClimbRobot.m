@@ -7,21 +7,23 @@
 conf = struct;
 
 conf.delta_goal_point = 0.15;  %0.5;                                          % Radius of goal point
-conf.delta_goal_angle = 0.85; 
+conf.delta_goal_angle = 0.85;   %below which we think the path has reach the goal angle
+conf.angle_same_epsilon = 0.02;  % below which we think the two angles are same
 conf.num_links = 6;                                                  % Number of links in the manipulator model
 conf.max_ang = pi * ones(conf.num_links,1);                % Maximum joint angle for each joint
 conf.min_ang = -pi * ones(conf.num_links,1);                % Minimum joint angle for each joint
-conf.delta_ang_max = 40 * pi/ 180; % 40 * pi / 180 % 20 * pi / 180; %10 * pi / 180;                                 % Maximum joint angle change at each iteration
-conf.delta_ang_neighbor = 40 * pi / 180;   %30 * pi / 180;                            % Maximum joint angle change at each neighbor search
+conf.delta_ang_max = 10 * pi /180;  %40 * pi/ 180; %40 * pi/ 180; % 40 * pi / 180 % 20 * pi / 180; %10 * pi / 180;                                 % Maximum joint angle change at each iteration
+conf.delta_ang_neighbor = 10 * pi / 180; %40 * pi / 180;   %30 * pi / 180;                            % Maximum joint angle change at each neighbor search
 conf.disp_interval = 100;                                           % Interval for progress monitoring
 conf.init_conf = zeros(conf.num_links,1);                  % Initial configuration of the manipulator model
 conf.step_div = 4;                                                  % Number of transition states between nodes, used for collision detection
-
-conf.len_link    = 1*ones(conf.num_links, 1);                       % Array storing the length of the links
+conf.width = 0.8; %link width, assume all same
+conf.length = 1;  % link length, assume all same in our simulation
+conf.len_link    = conf.length * ones(conf.num_links, 1);                       % Array storing the length of the links
 conf.half_total_length = 0.5 * sum(conf.len_link);
 %conf.rev_len_link = conf.len_link(end:1);                          % reverse link length vector (because sometimes robot might seated at link n)
 conf.height_link = 0.2 *ones(conf.num_links, 1);                      % Array storing the height of the links
-conf.width_link  = 0.8 *ones(conf.num_links, 1);                       % Array storing the width of the links
+conf.width_link  = conf.width *ones(conf.num_links, 1);                       % Array storing the width of the links
 
 % goal configuration, same as init_conf, but sitting on different holds
 % so basically we want to the robot to moving from starting hold to goal
@@ -44,7 +46,7 @@ conf.hold_orientation = pi/2;  % for vertical climbing, no matter holder = link 
 
 %% when a vertice from one obstacle has a distance from an edge from another obstacle
 %% is less than this parameter, consider to form a possible narrow passage.
-conf.narrow_dist = 1.5;  
+conf.narrow_dist = 1.5 - 0.5 * conf.width;  
 
 %% used in knn search algorithm: number of neighbors for each hold
 conf.neighbors = 3;
@@ -68,7 +70,8 @@ conf.hold_radius = 0.2;
 %% animation figure id (for avoiding conflict with existing plot figure ids, we need to configure a
 % new id for animation purpose
 conf.animation_fig_id = 500;
-conf.clearance_fig_id = 600;
+conf.narrowness_fig_id = 600;
+conf.clearance_fig_id = 601;
 
 %% the following is for easier animation
 conf.max_linkwidth = max(conf.width_link);
@@ -94,10 +97,10 @@ conf.animate_raw = true;
 conf.nearest_nodes_comp_numbers = 5;
 
 %% probability for sampling topological components
-conf.sample_topo = 0.5;  % 50%, purely randomly samling when conf.sample_topo= 1.0, purely topo sampling when conf.sample_topo = 0.0;
+conf.sample_topo = 0.5;  % 0.5;  % 50%, purely randomly samling when conf.sample_topo= 1.0, purely topo sampling when conf.sample_topo = 0.0;
 
 %% search for non-colliding conf for closed chain
-conf.init_search_tries = 50;
+conf.init_search_tries = 200;
 
 %% whether to animate robot motion for every motion step
 conf.animate_every_step = true;
@@ -113,3 +116,23 @@ conf.total_iter = 2e6;
 
 %% animation file name
 conf.animation_filename = 'regular_rrt_test';
+
+%% the following parameters are for RRV
+% 1. radius of the ball around nearest neighbor for sampling Q^{t,obst}
+conf.rrv_R = 5 * conf.delta_ang_neighbor;
+% 2. number of samples inside the above ball
+conf.rrv_N = 100;
+%3. minimal length of principal component for considering as 
+% possible escape direction
+conf.rrv_min_r = 2.2 * conf.delta_ang_neighbor;
+% 4. number of candidate narrow samples inside narrow passage
+conf.rrv_narrow_numSamples = 10;
+
+%5. RRV escape direction estimation method:
+% 0, PCA method
+% 1, narrow Jacobian method
+if conf.sample_topo < 0.9999
+   conf.rrv_escape_estimatation_method = 1;
+else
+   conf.rrv_escape_estimatation_method = 0; 
+end
