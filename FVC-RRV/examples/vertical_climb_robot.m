@@ -20,7 +20,7 @@ variant = 'FNClimbRobot_RRV';
 % sample_alg is the type of the sampling
 % sample_alg = 1;  
 %% planning vertical climbing function
-if strcmp(variant, 'FNClimbRobot')        %%% Regular RRT with/without combined topological samples + regular samples
+if strcmp(variant, 'FNClimbRobot')        %%% Regular M-RRT with/without combined topological samples + regular samples
   result = climbPlanning(map, max_iter, is_benchmark, rand_seed, variant);
 elseif strcmp(variant, 'FNClimbRobot_CONNECT')  %%% RRT-connect with/without combined topological samples + regular samples
     result = climbPlanning_CONNECT(map, max_iter, is_benchmark, rand_seed, variant);
