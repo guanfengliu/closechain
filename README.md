@@ -24,7 +24,7 @@ Animations for all examples in paper 2 under /paper.
 
 ## 3. common
  Common libraries, functions (such as collision checking, random loop sampling, configure drawing， etc.)
-, and utilities which are used in  M-PRM (modified PRM), FVC-PRM(FV-based PRM), and FVC-RRV （FVC-based  RRV) algorithms.
+, and utilities which are used in  FVC-PRM(M-PRM), and FVC-RRV（M-RRV) algorithms.
 
 ## 4. M-PRM
 Latest version of modified PRM algorithm by including both topological samples (directly sampling C-space narrow passage based upon sampling workspace narrow passage for a set of restrained links, and then applying IKs of subchains to map link configurations into samples in C-space narrow passages).
