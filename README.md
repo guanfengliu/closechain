@@ -20,8 +20,8 @@ topological components.
  FVC-narrow-passage.pdf is a revision of paper 2, in which we focus the theory and tool of free velocity cones (FVC) for identifying and navigating C-space narrow passages of kinematic chains with arbitrary degrees of freedom.
 
 ## 2. video
-Animations for all examples in paper 2 under /paper. Note: (1) Obstacles in Example-7-video and Example-8-video are point obstacles, and drawn as * in matlab (therefore only center of the start represents actual obstacles). (2) In example-9-video, there are no link-link self-intersection. However, since we employ a simple model of planar chain using a sequence of rectangles without drawing out the joints, you might see the overlapping of the two rectangles representing consecutive links. In practice, the joints
-will separate the two links except the case that the joint angle are close to 180 degree.
+Animations for all examples in paper 2 under /paper. Note: (1) Obstacles in examples in the folders 6bar-closechain-with-point-obstacles and 12bar-closechain-with-point-obstacles are point obstacles, and drawn as * in matlab (therefore only center of the * represents actual obstacles). (2) In examples in the climbing-robot folder, there are no link-link self-intersection. However, since we employ a simple model of planar kinematic chain using a sequence of rectangles without drawing out the joints, you might see the overlapping of the two rectangles representing consecutive links. In practice, the joints
+will separate the two links except for the case that the joint angle are close to 180 degree.
 
 ## 3. common
  Common libraries, functions (such as collision checking, random loop sampling, configure drawing， etc.)
